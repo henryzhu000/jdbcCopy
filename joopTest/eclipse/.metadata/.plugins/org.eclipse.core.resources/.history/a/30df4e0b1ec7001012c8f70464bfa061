@@ -1,0 +1,62 @@
+package jdbcTest.jdbcTest;
+
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.jooq.impl.DSL;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.*;
+
+@Component
+public class DependencyExplorerRunner implements CommandLineRunner {
+
+    @Override
+    public void run(String... args) throws Exception {
+
+        // ---------------------------------------------------------------
+        // 1) MySQL connection (from your application.properties)
+        // ---------------------------------------------------------------
+      //  String url  = "jdbc:mysql://localhost:3306/jobList?verifyServerCertificate=false&useSSL=true";
+        String url  = "jdbc:mysql://localhost:3306/testdatabase2?verifyServerCertificate=false&useSSL=true";
+        String user = "henry";
+        String pass = "password";
+
+        Class.forName("com.mysql.cj.jdbc.Driver"); // modern driver
+
+        try (Connection conn = DriverManager.getConnection(url, user, pass)) {
+            DSLContext ctx = DSL.using(conn, SQLDialect.MYSQL);
+
+            // -----------------------------------------------------------
+            // 2) The tables you want to KEEP (root nodes)
+            // -----------------------------------------------------------
+            Set<String> roots = new LinkedHashSet<>();
+            roots.add("user_roles");    // <-- CHANGE THIS
+   //         roots.add("another_table");    // <-- ADD/REMOVE as needed
+
+            // -----------------------------------------------------------
+            // 3) Resolve FK dependencies
+            // -----------------------------------------------------------
+            SortedSet<String> deps = DbDependencyResolver.resolveNames(ctx, roots);
+
+            // -----------------------------------------------------------
+            // 4) Print results
+            // -----------------------------------------------------------
+            System.out.println("\n====== ROOT TABLES ======");
+            roots.forEach(r -> System.out.println("  " + r));
+
+            System.out.println("\n====== DEPENDENCY CLOSURE (recursive FK parents) ======");
+            deps.forEach(name -> System.out.println("  " + name));
+
+            System.out.println("\n====== FINISHED TABLE SET TO KEEP ======");
+            Set<String> allKeep = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+            allKeep.addAll(roots);
+            allKeep.addAll(deps);
+            allKeep.forEach(t -> System.out.println("  " + t));
+        }
+
+        System.out.println("\n*** Dependency scan complete. No changes were made. ***\n");
+    }
+}

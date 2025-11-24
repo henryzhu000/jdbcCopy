@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- IMPORTANT: 4.0.0 DOES NOT EXIST, SO WE USE 3.2.8 WHICH WORKS -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.8</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>jooqAttempt</groupId>
+    <artifactId>jooqAttempt</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>jooqAttempt</name>
+
+    <properties>
+        <java.version>17</java.version>
+        <jooq.version>3.18.6</jooq.version>
+    </properties>
+
+    <dependencies>
+
+        <!-- Spring core -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- jOOQ runtime -->
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
+            <version>${jooq.version}</version>
+        </dependency>
+
+        <!-- MySQL driver -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.3.0</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- H2 (kept, as in your working pom) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+        </dependency>
+
+        <!-- XML writer for Hibernate mapping output -->
+<!-- https://mvnrepository.com/artifact/com.fasterxml.woodstox/woodstox-core -->
+<dependency>
+    <groupId>com.fasterxml.woodstox</groupId>
+    <artifactId>woodstox-core</artifactId>
+    <version>6.5.1</version>
+</dependency>
+
+
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <!-- jOOQ code generator (your working config, unchanged) -->
+            <plugin>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq-codegen-maven</artifactId>
+                <version>${jooq.version}</version>
+
+                <executions>
+                    <execution>
+                        <id>generate-jooq</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+
+                <configuration>
+                    <jdbc>
+                        <driver>com.mysql.cj.jdbc.Driver</driver>
+                        <url>jdbc:mysql://localhost:3306/joblist</url>
+                        <user>henry</user>
+                        <password>password</password>
+                    </jdbc>
+
+                    <generator>
+                        <name>org.jooq.codegen.DefaultGenerator</name>
+
+                        <database>
+                            <name>org.jooq.meta.mysql.MySQLDatabase</name>
+                            <inputSchema>joblist</inputSchema>
+                        </database>
+
+                        <generate>
+                            <pojos>true</pojos>
+                            <records>true</records>
+                            <relations>true</relations>
+                        </generate>
+
+                        <target>
+                            <packageName>com.example.jooq.generated</packageName>
+                            <directory>target/generated-sources/jooq</directory>
+                        </target>
+                    </generator>
+                </configuration>
+            </plugin>
+
+            <!-- Let IDE see generated jOOQ + POJOs -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>add-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>target/generated-sources/jooq</source>
+                                <source>target/generated-sources/pojo</source>
+                                <source>target/generated-mappings</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Exec plugin: run the Hibernate XML + POJO generator during generate-sources -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-hibernate-xml</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>jooqAttempt.JooqToHibernateXmlGeneratorApplication</mainClass>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Spring Boot plugin -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>

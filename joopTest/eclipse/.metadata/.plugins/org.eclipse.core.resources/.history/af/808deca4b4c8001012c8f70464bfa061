@@ -1,0 +1,24 @@
+spring.application.name=jooqJPA
+
+# ===========================
+# H2 TARGET (file-based)
+# ===========================
+spring.datasource.url=jdbc:h2:file:D:/temp/h2/file1
+spring.datasource.username=sa
+spring.datasource.password=
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect
+
+# optional pretty SQL
+logging.level.org.hibernate.SQL=DEBUG
+logging.level.org.hibernate.orm.jdbc.bind=TRACE
+
+
+# ===========================
+# MySQL SOURCE (jOOQ only)
+# ===========================
+spring.datasource.mysql.url=jdbc:mysql://localhost:3306/joblist
+spring.datasource.mysql.username=henry
+spring.datasource.mysql.password=password
+spring.datasource.mysql.driver-class-name=com.mysql.cj.jdbc.Driver

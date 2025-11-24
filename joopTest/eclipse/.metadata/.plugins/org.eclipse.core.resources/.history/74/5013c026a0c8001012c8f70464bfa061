@@ -1,0 +1,75 @@
+package jooqAttempt.jooqAttempt;
+import org.jooq.Record;
+
+import org.jooq.*;
+import org.jooq.impl.DSL;
+import org.springframework.stereotype.Component;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.List;
+
+@Component
+public class MySQLToH2DataPopulator {
+
+    private static final String MYSQL_URL  = "jdbc:mysql://localhost:3306/joblist";
+    private static final String MYSQL_USER = "henry";
+    private static final String MYSQL_PASS = "password";
+
+    private static final String H2_URL     = "jdbc:h2:file:D:/temp/h2/h2diskdb";
+    private static final String H2_USER    = "sa";
+    private static final String H2_PASS    = "password";
+
+    public void copyData() throws Exception {
+
+        System.out.println("\n=== START: Copying data to H2 ===\n");
+
+        Connection mysqlConn = DriverManager.getConnection(MYSQL_URL, MYSQL_USER, MYSQL_PASS);
+        Connection h2Conn    = DriverManager.getConnection(H2_URL, H2_USER, H2_PASS);
+
+        DSLContext mysql = DSL.using(mysqlConn, SQLDialect.MYSQL);
+        DSLContext h2    = DSL.using(h2Conn, SQLDialect.H2);
+
+        Meta meta = mysql.meta();
+        Schema joblist = meta.getSchemas().stream()
+                .filter(s -> s.getName().equalsIgnoreCase("joblist"))
+                .findFirst()
+                .orElseThrow();
+
+        for (Table<?> t : joblist.getTables()) {
+
+            System.out.println("TABLE: " + t.getName());
+
+            Result<?> rows = mysql.selectFrom(t).fetch();
+
+            if (rows.isEmpty()) {
+                System.out.println("  No rows.");
+                continue;
+            }
+
+            for (Record row : rows) {
+                InsertSetMoreStep<?> insert = h2.insertInto(t);
+                InsertSetStep<?> set = null;
+
+                for (Field<?> f : t.fields()) {
+
+                    Object value = row.get(f);
+
+                    if (set == null) {
+                        set = insert.set(f, value);
+                    } else {
+                        set = set.set(f, value);
+                    }
+                }
+                set.execute();
+            }
+
+            System.out.println("  Copied " + rows.size() + " rows.");
+        }
+
+        mysqlConn.close();
+        h2Conn.close();
+
+        System.out.println("\n=== DONE copying data ===\n");
+    }
+}

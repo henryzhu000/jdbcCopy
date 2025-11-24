@@ -1,0 +1,50 @@
+package jooqJPA.jooqJPA;
+
+import com.example.jooq.generated.tables.Job;                    // jOOQ table
+import com.example.jooq.generated.tables.pojos.Job;              // JPA entity (same name!)
+import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.sql.DataSource;
+import java.util.List;
+
+@Service
+public class MigrationService {
+
+    private final DataSource mysql;
+
+    @PersistenceContext
+    private EntityManager em;
+
+    public MigrationService(@Qualifier("mysql") DataSource mysql) {
+        this.mysql = mysql;
+    }
+
+    @Transactional
+    public void migrateJobs() {
+
+        DSLContext ctx = DSL.using(mysql);
+
+        // Fetch MySQL rows into jOOQ POJOs (which now have @Entity!)
+        List<com.example.jooq.generated.tables.pojos.Job> rows =
+                ctx.selectFrom(Job.JOB)
+                        .fetchInto(com.example.jooq.generated.tables.pojos.Job.class);
+
+        // Insert into H2 via JPA entity manager
+        for (com.example.jooq.generated.tables.pojos.Job p : rows) {
+            com.example.jooq.generated.tables.pojos.Job e =
+                    new com.example.jooq.generated.tables.pojos.Job(p);
+
+            em.persist(e);
+        }
+
+        System.out.println("Migrated " + rows.size() + " rows from MySQL to H2.");
+    }
+}

@@ -1,0 +1,22 @@
+package.service.JobService;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+@Component
+public class JobRunner842 implements CommandLineRunner {
+
+    private final JobService jobService;
+
+    public JobRunner842(JobService jobService) {
+        this.jobService = jobService;
+    }
+
+    @Override
+    public void run(String... args) {
+        System.out.println("=== jOOQ Runner ===");
+
+        jobService.insertJob("Software Engineer", "Google");
+
+        jobService.listJobTitles().forEach(System.out::println);
+    }
+}

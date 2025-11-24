@@ -1,0 +1,53 @@
+package jooqAttempt.jooqAttempt;
+
+import com.example.jooq.generated.Joblist;
+import org.jooq.DSLContext;
+import org.jooq.Table;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+import java.util.Arrays;
+
+@Component
+public class JoblistExplorerRunner implements CommandLineRunner {
+
+    private final DSLContext ctx;
+
+    public JoblistExplorerRunner(DSLContext ctx) {
+        this.ctx = ctx;
+    }
+
+    @Override
+    public void run(String... args) throws Exception {
+
+        System.out.println("=== STARTING JOBLIST SCHEMA EXPLORER ===\n");
+
+        // Print schema name
+        System.out.println("Schema: " + Joblist.JOBLIST.getName());
+        System.out.println();
+
+        // Loop through all tables in the schema
+        for (Table<?> table : Joblist.JOBLIST.getTables()) {
+
+            System.out.println("TABLE: " + table.getName());
+
+            // Print all column names for each table
+            Arrays.stream(table.fields()).forEach(field -> {
+                System.out.println("    COLUMN: " + field.getName() +
+                                   "    TYPE: " + field.getDataType());
+            });
+
+            // Try selecting all rows from this table
+            try {
+                var result = ctx.selectFrom(table).fetch();
+                System.out.println("    ROWS: " + result.size());
+            } catch (Exception e) {
+                System.out.println("    (Cannot query table — may require permissions or have no rows)");
+            }
+
+            System.out.println();
+        }
+
+        System.out.println("=== JOBLIST SCHEMA EXPLORATION COMPLETE ===");
+    }
+}

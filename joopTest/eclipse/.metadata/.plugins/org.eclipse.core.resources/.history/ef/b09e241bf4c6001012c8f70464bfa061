@@ -1,0 +1,29 @@
+
+
+import org.jooq.DSLContext;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class JobService {
+
+    private final DSLContext ctx;
+
+    public JobService(DSLContext ctx) {
+        this.ctx = ctx;
+    }
+
+    public List<String> listJobTitles() {
+        return ctx.select(JOB_LIST.TITLE)
+                  .from(JOB_LIST)
+                  .fetchInto(String.class);
+    }
+
+    public void insertJob(String title, String company) {
+        ctx.insertInto(JOB_LIST)
+           .set(JOB_LIST.TITLE, title)
+           .set(JOB_LIST.COMPANY, company)
+           .execute();
+    }
+}

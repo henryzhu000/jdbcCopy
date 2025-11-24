@@ -1,0 +1,5 @@
+# Created at 2025-11-21T11:12:26.751
+Boot Manifest-JAR contains absolute paths in classpath 'D:\programs\eclipse2025\workplace\test1\joopTest\jooqAttempt\jooqAttempt\target\test-classes'
+Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
+'other' has different root
+

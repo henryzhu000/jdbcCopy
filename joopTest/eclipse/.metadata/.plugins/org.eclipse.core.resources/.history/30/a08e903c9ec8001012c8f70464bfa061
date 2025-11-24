@@ -1,0 +1,7 @@
+# Disable JPA because we are not using Spring Data
+spring.jpa.hibernate.ddl-auto=none
+spring.jpa.show-sql=false
+
+# Enable H2 console (optional)
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2

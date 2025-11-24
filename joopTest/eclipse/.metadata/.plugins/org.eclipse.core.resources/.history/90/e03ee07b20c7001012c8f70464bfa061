@@ -1,0 +1,65 @@
+package jdbcTest.jdbcTest;
+
+import org.jooq.DSLContext;
+import org.jooq.ForeignKey;
+import org.jooq.Meta;
+import org.jooq.Table;
+
+import java.util.*;
+
+public class DbDependencyResolver {
+
+    public static Set<Table<?>> resolve(DSLContext ctx, Set<String> rootNames) {
+
+        Meta meta = ctx.meta();
+
+        Map<String, Table<?>> tableMap = new HashMap<>();
+
+        // ADD TABLES
+        for (Table<?> t : meta.getTables()) {
+            tableMap.put(t.getName().toLowerCase(Locale.ROOT), t);
+        }
+
+        // ADD VIEWS
+        for (Table<?> v : meta.getViews()) {
+            tableMap.put(v.getName().toLowerCase(Locale.ROOT), v);
+        }
+
+        Set<Table<?>> keep = new HashSet<>();
+        Queue<Table<?>> queue = new ArrayDeque<>();
+
+        // Add roots
+        for (String name : rootNames) {
+            Table<?> t = tableMap.get(name.toLowerCase(Locale.ROOT));
+            if (t != null) {
+                keep.add(t);
+                queue.add(t);
+            } else {
+                System.out.println("⚠ Unknown table/view: " + name);
+            }
+        }
+
+        // Traverse FK dependencies (only for real tables)
+        while (!queue.isEmpty()) {
+            Table<?> t = queue.poll();
+
+            for (ForeignKey<?, ?> fk : t.getReferences()) {
+                Table<?> parent = fk.getKey().getTable();
+                if (!keep.contains(parent)) {
+                    keep.add(parent);
+                    queue.add(parent);
+                }
+            }
+        }
+
+        return keep;
+    }
+
+    public static SortedSet<String> resolveNames(DSLContext ctx, Set<String> rootNames) {
+        SortedSet<String> out = new TreeSet<>();
+        for (Table<?> t : resolve(ctx, rootNames)) {
+            out.add(t.getName().toLowerCase(Locale.ROOT));
+        }
+        return out;
+    }
+}

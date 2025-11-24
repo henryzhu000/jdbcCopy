@@ -1,0 +1,13 @@
+package jooqAttempt.jooqAttempt;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class JooqAttemptApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(JooqAttemptApplication.class, args);
+	}
+
+}

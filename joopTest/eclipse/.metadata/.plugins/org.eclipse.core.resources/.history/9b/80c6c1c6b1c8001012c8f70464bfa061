@@ -1,0 +1,50 @@
+package jooqAttempt;
+
+import com.example.jooq.generated.tables.Job;
+import com.example.jooq.generated.tables.pojos.Job as JobPojo;
+import com.example.jooq.generated.tables.entities.JobEntity;
+
+import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.sql.DataSource;
+import java.util.List;
+
+@Service
+public class MigrationService {
+
+    private final DataSource mysql;
+
+    @PersistenceContext
+    private EntityManager em;
+
+    public MigrationService(@Qualifier("mysql") DataSource mysql) {
+        this.mysql = mysql;
+    }
+
+    @Transactional
+    public void migrateJobs() {
+
+        DSLContext ctx = DSL.using(mysql);
+
+        List<JobPojo> records =
+                ctx.selectFrom(Job.JOB)
+                   .fetchInto(JobPojo.class);
+
+        for (JobPojo p : records) {
+            JobEntity e = new JobEntity();
+            e.setId(p.getId());
+            e.setTitle(p.getTitle());
+            e.setDescription(p.getDescription());
+            em.persist(e);
+        }
+
+        System.out.println("Migrated " + records.size() + " Job rows into H2.");
+    }
+}

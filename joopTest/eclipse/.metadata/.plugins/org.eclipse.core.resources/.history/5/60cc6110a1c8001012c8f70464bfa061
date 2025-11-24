@@ -1,0 +1,115 @@
+package jooqAttempt.jooqAttempt;
+
+import org.jooq.*;
+import org.jooq.conf.RenderQuotedNames;
+import org.jooq.conf.Settings;
+import org.jooq.impl.DSL;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.*;
+
+@Component
+public class Test2Class implements CommandLineRunner {
+
+    private static final String MYSQL_URL  = "jdbc:mysql://localhost:3306/joblist";
+    private static final String MYSQL_USER = "henry";
+    private static final String MYSQL_PASS = "password";
+
+    private static final String H2_URL     = "jdbc:h2:file:D:/temp/h2/h2diskdb";
+    private static final String H2_USER    = "sa";
+    private static final String H2_PASS    = "password";
+
+    @Override
+    public void run(String... args) throws Exception {
+
+        System.out.println("\n=== START MySQL → H2 migration ===\n");
+
+        Connection mysqlConn = DriverManager.getConnection(MYSQL_URL, MYSQL_USER, MYSQL_PASS);
+        Connection h2Conn    = DriverManager.getConnection(H2_URL, H2_USER, H2_PASS);
+
+        // IMPORTANT FIX:
+        Settings settings = new Settings()
+                .withRenderSchema(false)                      // do not output schema names
+                .withRenderQuotedNames(RenderQuotedNames.NEVER); // remove all quotes
+
+        DSLContext mysql = DSL.using(mysqlConn, SQLDialect.MYSQL);
+        DSLContext h2    = DSL.using(h2Conn, SQLDialect.H2, settings);
+
+        // Load only joblist schema
+        Schema joblist = mysql.meta().getSchemas().stream()
+                .filter(s -> s.getName().equalsIgnoreCase("joblist"))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Schema joblist not found"));
+
+        List<Table<?>> tables = new ArrayList<>(joblist.getTables());
+        System.out.println("Migrating " + tables.size() + " tables.");
+
+        // 1. Create Tables
+        for (Table<?> table : tables) {
+            System.out.println("Creating table: " + table.getName());
+
+            Queries ddl = mysql.ddl(table);
+
+            for (Query q : ddl.queries()) {
+                String sql = q.getSQL();
+
+                sql = sql.replace("`", "");
+                sql = sql.replace("joblist.", "");
+                sql = sql.replace("unsigned", "");
+                sql = sql.replace("AUTO_INCREMENT", "");
+                sql = sql.replaceAll("constraint\\s+\\w+\\s+primary key", "primary key");
+                sql = sql.replaceAll("\\bvalue\\b", "\"value\"");
+
+                if (sql.trim().toLowerCase().startsWith("create schema")) {
+                    System.out.println("  Skip schema: " + sql);
+                    continue;
+                }
+
+                System.out.println("  Executing DDL: " + sql);
+                h2.execute(sql);
+            }
+        }
+
+        // 2. Copy Data
+        for (Table<?> table : tables) {
+
+            System.out.println("Copying: " + table.getName());
+
+            Result<?> rows = mysql.selectFrom(table).fetch();
+
+            if (rows.isEmpty()) {
+                System.out.println("  No rows.");
+                continue;
+            }
+
+            List<Map<Field<?>, Object>> allRows = new ArrayList<>();
+
+            for (Map<String, Object> map : rows.intoMaps()) {
+                Map<Field<?>, Object> rowMap = new LinkedHashMap<>();
+                for (Field<?> f : table.fields()) {
+                    rowMap.put(f, map.get(f.getName()));
+                }
+                allRows.add(rowMap);
+            }
+
+            for (Map<Field<?>, Object> vm : allRows) {
+                h2.insertInto(table)
+                        .set(vm)
+                        .execute();
+            }
+
+            System.out.println("  Copied " + rows.size() + " rows.");
+        }
+
+        mysqlConn.close();
+        h2Conn.close();
+
+        System.out.println("\n=== DONE: Migration COMPLETE ===");
+        System.out.println("Open H2 Console: http://localhost:8080/h2\n");
+
+        Thread.currentThread().join();
+    }
+}

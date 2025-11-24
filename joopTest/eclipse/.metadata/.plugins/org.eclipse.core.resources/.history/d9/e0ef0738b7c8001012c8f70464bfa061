@@ -1,0 +1,22 @@
+package jooqJPA.jooqJPA;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "jobs_applied", schema = "joblist")
+public class JobsApplied {
+
+    @Id
+    private Long id;
+
+    private Integer category;
+    private String company;
+    private Long date;
+    private String description;
+    private String title;
+    private String url;
+
+    // getters+setters
+}

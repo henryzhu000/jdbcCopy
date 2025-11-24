@@ -1,0 +1,30 @@
+package jooqAttempt.jooqAttempt;
+import org.jooq.DSLContext;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+import static com.example.jooq.generated.tables.Jobs.JOBS;
+
+@Service
+public class JobService {
+
+    private final DSLContext ctx;
+
+    public JobService(DSLContext ctx) {
+        this.ctx = ctx;
+    }
+
+    public List<String> listJobTitles() {
+        return ctx.select(JOBS.TITLE)
+                  .from(JOBS)
+                  .fetchInto(String.class);
+    }
+
+    public void insertJob(String title, String company) {
+        ctx.insertInto(JOBS)
+           .set(JOBS.TITLE, title)
+           .set(JOBS.COMPANY, company)
+           .execute();
+    }
+}

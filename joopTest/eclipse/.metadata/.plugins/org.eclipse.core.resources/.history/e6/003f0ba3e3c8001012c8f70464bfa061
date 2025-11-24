@@ -1,0 +1,9 @@
+package hibernateToolsTest.hibernateToolsTest;
+
+public class JooqToHibernateXmlGeneratorApplication {
+
+    public static void main(String[] args) throws Exception {
+        System.out.println("Hibernate XML generator running...");
+        // your generator logic here, copied from jooqAttempt project
+    }
+}

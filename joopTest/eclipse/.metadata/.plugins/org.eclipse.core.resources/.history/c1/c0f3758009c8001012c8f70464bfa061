@@ -1,0 +1,95 @@
+import org.jooq.*;
+import org.jooq.impl.DSL;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+
+// Replace this import with your generated jOOQ package.
+// Example:
+// import static com.example.generated.jooq.tables.Tables.*;
+
+
+/**
+ * Spring Boot CommandLineRunner that migrates MySQL → H2 (disk).
+ * No other classes required.
+ */
+@Component
+public class MySQLToH2MigratorRunner implements CommandLineRunner {
+
+    // ======= SET YOUR DATABASES HERE =======
+    private static final String MYSQL_URL  = "jdbc:mysql://localhost:3306/yourdb";
+    private static final String MYSQL_USER = "root";
+    private static final String MYSQL_PASS = "password";
+
+    // IMPORTANT: H2 persisting to disk must use a file URL:
+    // jdbc:h2:file:./h2data   → creates file "h2data.mv.db"
+    private static final String H2_URL     = "jdbc:h2:file:./h2diskdb";
+    private static final String H2_USER    = "sa";
+    private static final String H2_PASS    = "";
+    // =========================================
+
+    @Override
+    public void run(String... args) throws Exception {
+
+        System.out.println("\n=== Starting MySQL → H2 migration ===\n");
+
+        // ---------- CONNECT ----------
+        DSLContext mysql = DSL.using(
+                MYSQL_URL, MYSQL_USER, MYSQL_PASS, SQLDialect.MYSQL);
+
+        DSLContext h2 = DSL.using(
+                H2_URL, H2_USER, H2_PASS, SQLDialect.H2);
+
+        System.out.println("Connected to MySQL and H2 disk database.");
+
+        // ---------- 1. COLLECT TABLE LIST ----------
+        List<Table<?>> tables = new ArrayList<>();
+
+        for (Schema schema : mysql.meta().getSchemas()) {
+            for (Table<?> table : schema.getTables()) {
+                tables.add(table);
+            }
+        }
+
+        System.out.println("Found " + tables.size() + " tables.");
+
+        // ---------- 2. CREATE TABLES IN H2 ----------
+        for (Table<?> table : tables) {
+
+            System.out.println("Creating table: " + table.getName());
+
+            // jOOQ DDL for this table
+            String createSql = table.ddl().get(0).sql();
+
+            // Clean up MySQL-specific syntax
+            createSql = createSql
+                    .replace("unsigned", "")
+                    .replace(" AUTO_INCREMENT", "");
+
+            h2.execute(createSql);
+        }
+
+        // ---------- 3. COPY DATA ----------
+        for (Table<?> table : tables) {
+            System.out.println("Copying: " + table.getName());
+
+            Result<?> rows = mysql.selectFrom(table).fetch();
+
+            if (rows.isEmpty()) {
+                System.out.println("  No rows.");
+                continue;
+            }
+
+            h2.loadInto(table)
+                    .loadRecords(rows)
+                    .fields(table.fields())
+                    .execute();
+
+            System.out.println("  Copied " + rows.size() + " rows.");
+        }
+
+        System.out.println("\n=== Done: MySQL → H2 persisted copy complete ===\n");
+    }
+}

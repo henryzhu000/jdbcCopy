@@ -1,0 +1,29 @@
+package jooqAttempt.jooqAttempt;
+
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class JooqAttemptApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(JooqAttemptApplication.class, args);
+	}
+	
+	@Bean
+	public CommandLineRunner run842(JobService service) {
+	    return args -> {
+	        System.out.println("=== jOOQ Demo ===");
+
+	        // Example insert
+	        service.insertJob("Software Engineer", "Google");
+
+	        // Example select
+	        var titles = service.listJobTitles();
+	        titles.forEach(System.out::println);
+	    };
+	}
+
+
+}

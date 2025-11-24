@@ -1,0 +1,109 @@
+package jdbcTest.jdbcTest;
+
+import org.jooq.*;
+import org.jooq.Record;
+
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class DbDependencyResolver {
+
+    private static final Pattern TABLE_PATTERN = Pattern.compile(
+            "(?i)\\bfrom\\s+([a-zA-Z0-9_\\.]+)|\\bjoin\\s+([a-zA-Z0-9_\\.]+)");
+
+    public static Set<Table<?>> resolve(DSLContext ctx, Set<String> rootNames) {
+
+        Meta meta = ctx.meta();
+
+        Map<String, Table<?>> tableMap = new HashMap<>();
+        for (Table<?> t : meta.getTables()) {
+            tableMap.put(t.getName().toLowerCase(Locale.ROOT), t);
+        }
+
+        Map<String, Set<String>> viewDeps = loadViewDepsWithShowCreate(ctx);
+
+        Set<Table<?>> keep = new HashSet<>();
+        Queue<String> queue = new ArrayDeque<>();
+
+        for (String r : rootNames) {
+            queue.add(r.toLowerCase());
+        }
+
+        while (!queue.isEmpty()) {
+            String name = queue.poll();
+
+            Table<?> t = tableMap.get(name);
+            if (t != null) {
+                if (keep.add(t)) {
+                    for (ForeignKey<?, ?> fk : t.getReferences()) {
+                        queue.add(fk.getKey().getTable().getName().toLowerCase());
+                    }
+                }
+            }
+
+            Set<String> deps = viewDeps.get(name);
+            if (deps != null) {
+                for (String d : deps) {
+                    queue.add(d.toLowerCase());
+                }
+            }
+        }
+
+        return keep;
+    }
+
+    // -------- READ VIEW SQL using SHOW CREATE VIEW --------
+    private static Map<String, Set<String>> loadViewDepsWithShowCreate(DSLContext ctx) {
+        Map<String, Set<String>> map = new HashMap<>();
+
+        List<String> views = ctx
+                .fetch("SHOW FULL TABLES WHERE Table_type = 'VIEW'")
+                .getValues(0, String.class);
+
+        for (String view : views) {
+            String lower = view.toLowerCase(Locale.ROOT);
+
+            Record r = ctx.fetchOne("SHOW CREATE VIEW " + view);
+            if (r == null) continue;
+
+            String createSql = r.get("Create View", String.class);
+            if (createSql == null) continue;
+
+            Set<String> tables = extractTables(createSql);
+            map.put(lower, tables);
+        }
+
+        return map;
+    }
+
+
+    private static Set<String> extractTables(String sql) {
+        Set<String> out = new HashSet<>();
+        Matcher m = TABLE_PATTERN.matcher(sql);
+
+        while (m.find()) {
+            String t1 = m.group(1);
+            String t2 = m.group(2);
+            if (t1 != null) out.add(clean(t1));
+            if (t2 != null) out.add(clean(t2));
+        }
+        return out;
+    }
+
+    private static String clean(String s) {
+        s = s.toLowerCase(Locale.ROOT);
+        if (s.contains(".")) {
+            return s.substring(s.indexOf('.') + 1);
+        }
+        return s;
+    }
+
+    public static SortedSet<String> resolveNames(DSLContext ctx, Set<String> rootNames) {
+        SortedSet<String> out = new TreeSet<>();
+        for (Table<?> t : resolve(ctx, rootNames)) {
+            out.add(t.getName().toLowerCase(Locale.ROOT));
+        }
+        return out;
+    }
+}

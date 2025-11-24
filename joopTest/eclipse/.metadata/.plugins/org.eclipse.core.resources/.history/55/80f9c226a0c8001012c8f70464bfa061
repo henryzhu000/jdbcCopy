@@ -1,0 +1,68 @@
+package jooqAttempt.jooqAttempt;
+
+import org.jooq.*;
+import org.jooq.impl.DSL;
+import org.springframework.stereotype.Component;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.List;
+
+@Component
+public class MySQLToH2SchemaCreator {
+
+    private static final String MYSQL_URL  = "jdbc:mysql://localhost:3306/joblist";
+    private static final String MYSQL_USER = "henry";
+    private static final String MYSQL_PASS = "password";
+
+    private static final String H2_URL     = "jdbc:h2:file:D:/temp/h2/h2diskdb";
+    private static final String H2_USER    = "sa";
+    private static final String H2_PASS    = "password";
+
+    public void createSchema() throws Exception {
+
+        System.out.println("\n=== START: Creating H2 schema ===\n");
+
+        Connection mysqlConn = DriverManager.getConnection(MYSQL_URL, MYSQL_USER, MYSQL_PASS);
+        Connection h2Conn    = DriverManager.getConnection(H2_URL, H2_USER, H2_PASS);
+
+        DSLContext mysql = DSL.using(mysqlConn, SQLDialect.MYSQL);
+        DSLContext h2    = DSL.using(h2Conn, SQLDialect.H2);
+
+        Schema joblist = mysql.meta().getSchemas().stream()
+                .filter(s -> s.getName().equalsIgnoreCase("joblist"))
+                .findFirst()
+                .orElseThrow();
+
+        List<Table<?>> tables = new ArrayList<>(joblist.getTables());
+
+        for (Table<?> table : tables) {
+
+            Queries ddl = mysql.ddl(table);
+
+            for (Query q : ddl.queries()) {
+                String sql = q.getSQL();
+
+                sql = sql.replace("`", "");
+                sql = sql.replace("joblist.", "");
+                sql = sql.replace("unsigned", "");
+                sql = sql.replace("AUTO_INCREMENT", "");
+                sql = sql.replaceAll("constraint\\s+\\w+\\s+primary key", "primary key");
+                sql = sql.replaceAll("\\bvalue\\b", "\"value\"");
+
+                if (sql.trim().toLowerCase().startsWith("create schema")) {
+                    continue;
+                }
+
+                System.out.println("DDL: " + sql);
+                h2.execute(sql);
+            }
+        }
+
+        mysqlConn.close();
+        h2Conn.close();
+
+        System.out.println("\n=== DONE creating H2 schema ===\n");
+    }
+}

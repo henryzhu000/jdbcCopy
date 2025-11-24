@@ -1,0 +1,98 @@
+package jooqAttempt.jooqAttempt;
+
+import org.jooq.*;
+import org.jooq.impl.DSL;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.List;
+
+// ✔ USE YOUR REAL jOOQ PACKAGE
+import static com.example.jooq.generated.Tables.*;
+
+@Component
+public class MySQLToH2MigratorRunner implements CommandLineRunner {
+
+    private static final String MYSQL_URL  = "jdbc:mysql://localhost:3306/joblist";
+    private static final String MYSQL_USER = "henry";
+    private static final String MYSQL_PASS = "password";
+
+    // H2 database file persisted to disk
+    private static final String H2_URL     = "jdbc:h2:file:D:/temp/h2/h2diskdb";
+    private static final String H2_USER    = "sa";
+    private static final String H2_PASS    = "password";
+
+    @Override
+    public void run(String... args) throws Exception {
+
+        System.out.println("\n=== START MySQL → H2 migration ===\n");
+
+        // ---------- CONNECT TO MYSQL + H2 ----------
+        Connection mysqlConn = DriverManager.getConnection(MYSQL_URL, MYSQL_USER, MYSQL_PASS);
+        Connection h2Conn    = DriverManager.getConnection(H2_URL, H2_USER, H2_PASS);
+
+        DSLContext mysql = DSL.using(mysqlConn, SQLDialect.MYSQL);
+        DSLContext h2    = DSL.using(h2Conn, SQLDialect.H2);
+
+        // ---------- 1. ONLY USE THE JOBLIST SCHEMA ----------
+        Schema joblistSchema = mysql.meta().getSchemas()
+                .stream()
+                .filter(s -> s.getName().equalsIgnoreCase("joblist"))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Schema joblist not found"));
+
+        List<Table<?>> tables = new ArrayList<>(joblistSchema.getTables());
+
+        System.out.println("Migrating " + tables.size() + " tables from schema joblist.");
+
+        // ---------- 2. CREATE TABLES IN H2 ----------
+        for (Table<?> table : tables) {
+            System.out.println("Creating table: " + table.getName());
+
+            Queries ddl = mysql.ddl(table);
+
+            for (Query q : ddl.queries()) {
+                String sql = q.getSQL()
+                        .replace("unsigned", "")
+                        .replace("AUTO_INCREMENT", "")
+                        .replace("`", "");   // optional: remove MySQL backticks
+
+                // ❗ SKIP "CREATE SCHEMA joblist"
+                if (sql.trim().toLowerCase().startsWith("create schema")) {
+                    System.out.println("  Skipped schema creation: " + sql);
+                    continue;
+                }
+
+                // Execute H2-compatible DDL
+                h2.execute(sql);
+            }
+        }
+
+        // ---------- 3. COPY TABLE DATA ----------
+        for (Table<?> table : tables) {
+            System.out.println("Copying: " + table.getName());
+
+            Result<?> rows = mysql.selectFrom(table).fetch();
+
+            if (rows.isEmpty()) {
+                System.out.println("  No rows.");
+                continue;
+            }
+
+            h2.loadInto(table)
+                    .loadRecords(rows)
+                    .fields(table.fields())
+                    .execute();
+
+            System.out.println("  Copied " + rows.size() + " rows.");
+        }
+
+        System.out.println("\n=== DONE: MySQL → H2 disk migration COMPLETE ===\n");
+
+        mysqlConn.close();
+        h2Conn.close();
+    }
+}

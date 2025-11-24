@@ -1,0 +1,27 @@
+package jooqJPA.jooqJPA;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+
+import javax.sql.DataSource;
+
+@Configuration
+public class H2DataSourceConfig {
+
+    @Bean
+    @Primary
+    @ConfigurationProperties("spring.datasource")
+    public DataSourceProperties h2Props() {
+        return new DataSourceProperties();
+    }
+
+    @Bean
+    @Primary
+    public DataSource h2DataSource() {
+        return h2Props().initializeDataSourceBuilder().build();
+    }
+}

@@ -1,0 +1,12 @@
+# enable console
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2
+
+# create a temporary DataSource only for the console
+spring.datasource.url=jdbc:h2:file:D:/temp/h2/h2diskdb
+spring.datasource.driverClassName=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=password
+
+# DO NOT create JPA tables
+spring.jpa.hibernate.ddl-auto=none

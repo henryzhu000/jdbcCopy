@@ -1,0 +1,51 @@
+package jooqJPA.jooqJPA;
+
+import com.example.jooq.generated.tables.JobsApplied;
+import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.sql.DataSource;
+import java.util.List;
+
+@Service
+public class MigrationService {
+
+    private final DataSource mysql;
+
+    @PersistenceContext
+    private EntityManager em;
+
+    public MigrationService(@Qualifier("mysql") DataSource mysql) {
+        this.mysql = mysql;
+    }
+
+    @Transactional
+    public void migrateJobsApplied() {
+
+        DSLContext ctx = DSL.using(mysql);
+
+        // Load MySQL rows into jOOQ-generated POJO
+        List<com.example.jooq.generated.tables.pojos.JobsApplied> rows =
+                ctx.selectFrom(JobsApplied.JOBS_APPLIED)
+                   .fetchInto(com.example.jooq.generated.tables.pojos.JobsApplied.class);
+
+        // Insert into H2 JPA
+        for (com.example.jooq.generated.tables.pojos.JobsApplied p : rows) {
+
+            // Copy constructor exists because jOOQ generated it
+            com.example.jooq.generated.tables.pojos.JobsApplied entity =
+                    new com.example.jooq.generated.tables.pojos.JobsApplied(p);
+
+            em.persist(entity);
+        }
+
+        System.out.println("Migrated " + rows.size() + " JobsApplied rows into H2.");
+    }
+}

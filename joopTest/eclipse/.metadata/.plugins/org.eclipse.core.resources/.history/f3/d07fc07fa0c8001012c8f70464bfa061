@@ -1,0 +1,119 @@
+package jooqAttempt.jooqAttempt;
+
+import org.jooq.*;
+import org.jooq.impl.DSL;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.example.jooq.generated.Tables.*;
+
+@Component
+public class MySQLToH2MigratorRunner implements CommandLineRunner {
+
+    private static final String MYSQL_URL  = "jdbc:mysql://localhost:3306/joblist";
+    private static final String MYSQL_USER = "henry";
+    private static final String MYSQL_PASS = "password";
+
+    // H2 database file persisted to disk
+    private static final String H2_URL     = "jdbc:h2:file:D:/temp/h2/h2diskdb";
+    private static final String H2_USER    = "sa";
+    private static final String H2_PASS    = "password";
+
+    @Override
+    public void run(String... args) throws Exception {
+    	run2();
+    }
+    
+  
+    public void run2() throws Exception {
+
+        System.out.println("\n=== START MySQL → H2 migration ===\n");
+
+        Connection mysqlConn = DriverManager.getConnection(MYSQL_URL, MYSQL_USER, MYSQL_PASS);
+        Connection h2Conn    = DriverManager.getConnection(H2_URL, H2_USER, H2_PASS);
+
+        DSLContext mysql = DSL.using(mysqlConn, SQLDialect.MYSQL);
+        DSLContext h2    = DSL.using(h2Conn, SQLDialect.H2);
+
+        // ---------- 1. SELECT ONLY joblist SCHEMA ----------
+        Schema joblist = mysql.meta().getSchemas().stream()
+                .filter(s -> s.getName().equalsIgnoreCase("joblist"))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Schema joblist not found"));
+
+        List<Table<?>> tables = new ArrayList<>(joblist.getTables());
+
+        System.out.println("Migrating " + tables.size() + " tables from schema joblist.");
+
+        // ---------- 2. CREATE TABLES IN H2 ----------
+        for (Table<?> table : tables) {
+            System.out.println("Creating table: " + table.getName());
+
+            Queries ddl = mysql.ddl(table);
+
+            for (Query q : ddl.queries()) {
+                String sql = q.getSQL();
+
+                // Remove MySQL backticks
+                sql = sql.replace("`", "");
+
+                // Strip schema prefix: joblist.table → table
+                sql = sql.replace("joblist.", "");
+
+                // Skip CREATE SCHEMA statements
+                if (sql.trim().toLowerCase().startsWith("create schema")) {
+                    System.out.println("  Skipped schema creation: " + sql);
+                    continue;
+                }
+
+                // Remove MySQL-specific bits
+                sql = sql.replace("unsigned", "");
+                sql = sql.replace("AUTO_INCREMENT", "");
+
+                // H2 doesn't like "constraint <name> primary key" → just "primary key"
+                sql = sql.replaceAll("constraint\\s+\\w+\\s+primary key", "primary key");
+
+                // H2 reserved word: VALUE → quote it as "value"
+                // This handles column definitions like "value varchar(255)"
+                sql = sql.replaceAll("\\bvalue\\b", "\"value\"");
+
+                System.out.println("  Executing DDL: " + sql);
+                h2.execute(sql);
+            }
+        }
+
+        // ---------- 3. COPY DATA ----------
+        for (Table<?> t : tables) {
+            System.out.println("Copying: " + t.getName());
+
+            Result<?> rows = mysql.selectFrom(t).fetch();
+
+            if (rows.isEmpty()) {
+                System.out.println("  No rows.");
+                continue;
+            }
+
+            h2.loadInto(t)
+                    .loadRecords(rows)
+                    .fields(t.fields())
+                    .execute();
+
+            System.out.println("  Copied " + rows.size() + " rows.");
+        }
+
+        System.out.println("\n=== DONE: MySQL → H2 migration COMPLETE ===\n");
+
+        mysqlConn.close();
+        h2Conn.close();
+        
+        System.out.println("\n=== Migration Done. H2 Console available at http://localhost:8080/h2 ===\n");
+
+     // Keep the app alive so H2 console can run
+     Thread.currentThread().join();
+    }
+}

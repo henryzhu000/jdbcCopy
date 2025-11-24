@@ -1,0 +1,115 @@
+package jdbcTest.jdbcTest;
+
+import org.jooq.*;
+import org.jooq.Record;
+import org.jooq.impl.DSL;
+
+import java.util.*;
+import java.util.regex.*;
+
+public class DbDependencyResolver {
+
+    // Regex to extract table names from a view definition
+    private static final Pattern TABLE_PATTERN = Pattern.compile(
+            "(?i)\\bfrom\\s+([a-zA-Z0-9_\\.]+)|\\bjoin\\s+([a-zA-Z0-9_\\.]+)");
+
+    public static Set<Table<?>> resolve(DSLContext ctx, Set<String> rootNames) {
+
+        Meta meta = ctx.meta();
+
+        Map<String, Table<?>> tableMap = new HashMap<>();
+
+        // jOOQ: tables + views (MySQL exposes views as tables anyway)
+        for (Table<?> t : meta.getTables()) {
+            tableMap.put(t.getName().toLowerCase(Locale.ROOT), t);
+        }
+
+        // Extract underlying tables from INFORMATION_SCHEMA.VIEWS
+        Map<String, Set<String>> viewTableMap = loadViewDependencies(ctx);
+
+        Set<Table<?>> keep = new HashSet<>();
+        Queue<String> queue = new ArrayDeque<>();
+
+        // Add all root names
+        for (String name : rootNames) {
+            queue.add(name.toLowerCase(Locale.ROOT));
+        }
+
+        while (!queue.isEmpty()) {
+            String name = queue.poll();
+
+            // If it’s a table/view known to jOOQ
+            Table<?> t = tableMap.get(name);
+            if (t != null) {
+                if (keep.add(t)) {      // only if newly added
+                    for (ForeignKey<?, ?> fk : t.getReferences()) {
+                        queue.add(fk.getKey().getTable().getName().toLowerCase());
+                    }
+                }
+            }
+
+            // If it’s a view: follow parsed dependencies
+            Set<String> viewDeps = viewTableMap.get(name);
+            if (viewDeps != null) {
+                for (String dep : viewDeps) {
+                    queue.add(dep.toLowerCase());
+                }
+            }
+        }
+
+        return keep;
+    }
+
+
+    // Extract table names from view SQL
+    private static Map<String, Set<String>> loadViewDependencies(DSLContext ctx) {
+        Map<String, Set<String>> map = new HashMap<>();
+
+        Result<Record3<String, String, String>> views =
+                ctx.select(
+                        DSL.field("table_name", String.class),
+                        DSL.field("view_definition", String.class),
+                        DSL.field("table_schema", String.class)
+                )
+                .from("information_schema.views")
+                .fetch();
+
+        for (Record r : views) {
+            String name = r.getValue("table_name", String.class).toLowerCase(Locale.ROOT);
+            String def = r.getValue("view_definition", String.class);
+
+            if (def == null) continue;
+
+            Matcher m = TABLE_PATTERN.matcher(def);
+            Set<String> tables = new HashSet<>();
+
+            while (m.find()) {
+                String t1 = m.group(1);
+                String t2 = m.group(2);
+                if (t1 != null) tables.add(clean(t1));
+                if (t2 != null) tables.add(clean(t2));
+            }
+
+            map.put(name, tables);
+        }
+
+        return map;
+    }
+
+    private static String clean(String s) {
+        if (s == null) return null;
+        s = s.toLowerCase(Locale.ROOT);
+        if (s.contains(".")) {
+            return s.substring(s.indexOf('.') + 1); // remove schema
+        }
+        return s;
+    }
+
+    public static SortedSet<String> resolveNames(DSLContext ctx, Set<String> rootNames) {
+        SortedSet<String> out = new TreeSet<>();
+        for (Table<?> t : resolve(ctx, rootNames)) {
+            out.add(t.getName().toLowerCase(Locale.ROOT));
+        }
+        return out;
+    }
+}

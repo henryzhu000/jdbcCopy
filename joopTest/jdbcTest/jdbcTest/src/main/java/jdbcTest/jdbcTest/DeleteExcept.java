@@ -1,0 +1,94 @@
+package jdbcTest.jdbcTest;
+
+import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.jooq.impl.DSL;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.*;
+
+public class DeleteExcept {
+
+    public static void main(String[] args) throws Exception {
+
+        // ---------- CONFIG ----------
+        String url  = "jdbc:mysql://localhost:3306/testdatabase2";
+        String user = "henry";
+        String pass = "password";
+
+        // The ONLY objects you want to KEEP:
+        String[] keepArray = {
+                "users",
+                "projects",
+                "view_users"
+        };
+        // ------------------------------
+
+        // Convert to lowercase Set for comparison
+        Set<String> keep = new HashSet<>();
+        for (String k : keepArray) {
+            keep.add(k.toLowerCase());
+        }
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+
+        try (Connection conn = DriverManager.getConnection(url, user, pass)) {
+
+            DSLContext ctx = DSL.using(conn, SQLDialect.MYSQL);
+
+            // Get all tables + views
+            List<Map<String, Object>> allRows =
+                    ctx.fetch("SHOW FULL TABLES").intoMaps();
+
+            List<String> viewsToDrop = new ArrayList<>();
+            List<String> tablesToDrop = new ArrayList<>();
+
+            // Identify deletable objects
+            for (Map<String, Object> row : allRows) {
+
+                String name  = row.values().toArray()[0].toString();
+                String type  = row.values().toArray()[1].toString();
+
+                String lower = name.toLowerCase();
+
+                if (!keep.contains(lower)) {
+                    if (type.equalsIgnoreCase("VIEW")) {
+                        viewsToDrop.add(name);
+                    } else {
+                        tablesToDrop.add(name);
+                    }
+                }
+            }
+
+            // SAFETY PRINT
+            System.out.println("\n=== KEEPING ===");
+            keep.forEach(k -> System.out.println("  " + k));
+
+            System.out.println("\n=== DROPPING VIEWS ===");
+            viewsToDrop.forEach(v -> System.out.println("  " + v));
+
+            System.out.println("\n=== DROPPING TABLES ===");
+            tablesToDrop.forEach(t -> System.out.println("  " + t));
+
+            // ---------- EXECUTE ----------
+            System.out.println("\n=== EXECUTING DROPS ===");
+
+            // Drop views first
+            for (String view : viewsToDrop) {
+                String sql = "DROP VIEW IF EXISTS `" + view + "`";
+                System.out.println(sql);
+           //     ctx.execute(sql);
+            }
+
+            // Drop tables next
+            for (String tbl : tablesToDrop) {
+                String sql = "DROP TABLE IF EXISTS `" + tbl + "`";
+                System.out.println(sql);
+             //   ctx.execute(sql);
+            }
+
+            System.out.println("\n*** CLEANUP COMPLETE ***\n");
+        }
+    }
+}

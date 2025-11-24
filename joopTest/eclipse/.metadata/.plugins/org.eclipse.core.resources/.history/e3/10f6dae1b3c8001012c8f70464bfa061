@@ -1,0 +1,19 @@
+package jooqJPA.jooqJPA;
+
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+@Component
+public class StartupRunner implements CommandLineRunner {
+
+    private final MigrationService migration;
+
+    public StartupRunner(MigrationService migration) {
+        this.migration = migration;
+    }
+
+    @Override
+    public void run(String... args) {
+        migration.migrateJobs();
+    }
+}
