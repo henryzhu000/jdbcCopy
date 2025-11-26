@@ -38,7 +38,7 @@ public class JooqCodeGenerator implements CommandLineRunner {
                 .withDatabase(new Database()
                     // ⭐ This works for ALL SQL Server versions. No bugs.
                     .withName("org.jooq.meta.jdbc.JDBCDatabase")
-                    .withInputSchema("dbo")
+                    .withIncludes(".*")
                 )
                 .withGenerate(new Generate()
                     .withPojos(true)

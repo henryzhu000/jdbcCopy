@@ -7,10 +7,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class HibernateGenerator implements CommandLineRunner {
-
+boolean run=false;
     @Override
     public void run(String... args) throws Exception {
-
+    	if(!run) {return ;}
         System.out.println("=== Generating Hibernate Entities ===");
 
         String url = "jdbc:sqlserver://192.168.2.100:1433;databaseName=master;encrypt=false";
@@ -27,16 +27,20 @@ public class HibernateGenerator implements CommandLineRunner {
                 .withGenerator(new Generator()
                         .withDatabase(new Database()
                                 .withName("org.jooq.meta.jdbc.JDBCDatabase")
-                                .withInputSchema("*")
+                                .withIncludes(".*")
                         )
                         .withGenerate(new Generate()
-                                .withPojosAsKotlinDataClasses(false)
-                                .withPojos(true)
-                                .withJpaAnnotations(true)   // ⭐ ADD JPA
-                                .withValidationAnnotations(true)
+                        		.withPojos(true)
+                        		.withJpaAnnotations(true)
+                        		 .withDaos(false)
+                                 .withRecords(false)
+                                 .withTables(false)
+                                 .withRoutines(false)
+                                 .withSequences(false)
+                                 .withRelations(false)
                         )
                         .withTarget(new Target()
-                                .withPackageName("sqlServerJava.entities")
+                                .withPackageName("sqlServerJava.entities2")
                                 .withDirectory("src/main/java")
                         )
                 );
